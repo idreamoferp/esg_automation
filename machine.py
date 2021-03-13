@@ -1,53 +1,53 @@
 from odoo_automation import automation, conveyor, dispenser
-import logging, threading, odoorpc
+import logging, time, odoorpc
 import configparser, argparse
 
 #setup console logger
-logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s - %(message)s",datefmt='%m/%d/%Y %I:%M:%S %p',level=logging.DEBUG)
-logger=logging.getLogger(__name__)
+logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s - %(message)s",datefmt='%m/%d/%Y %I:%M:%S %p',level=logging.INFO)
+logger=logging.getLogger("Peak Station")
 
-def machine(automation.MRP_Automation):
+class MRP_machine(automation.MRP_Automation):
     def __init__(self, api, config):
-        super(machine, self).__init__(api, int(config['machine']['equipment_id']))
+        super(MRP_machine, self).__init__(api, int(config['machine']['equipment_id']))
 
         #init route lanes
         self.route_lanes = [MRP_Carrier_Lane_0(self.api, self)]
         
-        _logger.info("Machine INIT Complete.")
+        logger.info("Machine INIT Complete.")
         return
     
     def indicator_start(self, value):
         
-        return super(machine, self).indicator_start(value)
+        return super(MRP_machine, self).indicator_start(value)
     
     def indicator_warn(self, value):
         
-        return super(machine, self).indicator_warn(value)
+        return super(MRP_machine, self).indicator_warn(value)
         
     def indicator_e_stop(self, value):
         
-        return super(machine, self).indicator_e_stop(value)
+        return super(MRP_machine, self).indicator_e_stop(value)
 
     #Button inputs
     def button_start(self):
-        return super(machine, self).button_start()
+        return super(MRP_machine, self).button_start()
     
     def button_stop(self):
-        return super(machine, self).button_stop()
+        return super(MRP_machine, self).button_stop()
     
     def e_stop(self):
         #put render safe i/o here.
-        return super(machine, self).e_stop()
+        return super(MRP_machine, self).e_stop()
     
     def e_stop_reset(self):
         #put reboot i/o here
-        return super(machine, self).e_stop_reset()
+        return super(MRP_machine, self).e_stop_reset()
 
     def get_blocking_status(self):
-        return super(machine, self).get_blocking_status()   
+        return super(MRP_machine, self).get_blocking_status()   
 
     def quit(self):
-        return super(machine, self).quit()
+        return super(MRP_machine, self).quit()
 
 class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
     def __init__(self, api, mrp_automation_machine):
@@ -110,5 +110,12 @@ def read_config():
 if __name__ == '__main__':
     config = read_config()
     odoo_api = create_odoo_api()
-    machine = machine(odoo_api, config)
+    machine = MRP_machine(odoo_api, config)
+    
+    #uncomment for machine auto start
+    #machine.button_start()
+    
+    while 1:
+        #main thread eep alive
+        time.sleep(1000)
     pass
