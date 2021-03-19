@@ -8,13 +8,13 @@ logger=logging.getLogger("Peak Station")
 
 class MRP_machine(automation.MRP_Automation):
     def __init__(self, api, config):
-        super(MRP_machine, self).__init__(api, int(config['machine']['equipment_id']))
+        result = super(MRP_machine, self).__init__(api, int(config['machine']['equipment_id']),config)
 
         #init route lanes
         self.route_lanes = [MRP_Carrier_Lane_0(self.api, self)]
         
         logger.info("Machine INIT Complete.")
-        return
+        return result
     
     def indicator_start(self, value):
         
@@ -51,8 +51,8 @@ class MRP_machine(automation.MRP_Automation):
 
 class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
     def __init__(self, api, mrp_automation_machine):
-        super(MRP_Carrier_Lane_0, self).__init__(api, mrp_automation_machine)
         self._logger = logging.getLogger("Carrier Lane 0")
+        super(MRP_Carrier_Lane_0, self).__init__(api, mrp_automation_machine)
         self._logger.info("Lane INIT Complete")
         pass
     
