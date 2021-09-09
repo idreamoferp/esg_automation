@@ -482,32 +482,44 @@ class divert_1(conveyor.Diverter):
         return super(divert_1, self).clear_divert()
     
 
-#startup this machine
-if __name__ == "__main__":
-    
-    #odoo api settings, TODO: move these to a server_config file
-    server = "usboiepxd01" 
-    port = 8120
-    database = "13_ESG_Beta_1-1"
-    user_id = "ESG01-00181"
-    password = "1q2w3e4r"
-    
-    #create instance of odooRPC clinet with these settings
-    odoo = odoorpc.ODOO(server, port=port)
-    
-    #attempt a login to odoo server to init the api
+def create_odoo_api():
+    #create odoo api object
     try:
-        odoo.login(database, user_id, password)
+        odoo = odoorpc.ODOO(config['odoo']['server_url'], port=config['odoo']['tcp_port'])
+        odoo.login(config['odoo']['database'], config['odoo']['username'], config['odoo']['password'])
+        logger.info("Loggedin to ODOO server %s as %s" % (config['odoo']['database'], config['odoo']['username']))
+        return odoo
     except Exception as e:
-        _logger.error("Error logging in to odoo server" + e)
-    
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--equipment-id', type=int, help='ODOO Maintence Equipment ID')
-    args = parser.parse_args()
-    
-    #create instance of this test machine, and start its engine
-    test_machine = TestMachine(api=odoo, asset_id=args.equipment_id)
+        logger.error(e)
+        exit(-1)
+        pass
 
-    while True:
-        time.sleep(100)
+def read_config():
+    #parse command line args
+    try:
+        parser = argparse.ArgumentParser(description='')
+        parser.add_argument('-c', type=str, help='Configuration file path')
+        args = parser.parse_args()
+        
+        #parse config file args
+        config = configparser.ConfigParser()
+        config.readfp( open(args.c) ) #open the config file listed in command line arg c
+        logger.info("Read config file %s" % (args.c))
+        return config
+    except Exception as e:
+        logger.error(e)
+        exit(-2)
+        pass
+
+if __name__ == '__main__':
+    config = read_config()
+    odoo_api = create_odoo_api()
+    machine = MRP_machine(odoo_api, config)
+    
+    #uncomment for machine auto start
+    machine.button_start()
+    
+    while 1:
+        #main thread eep alive
+        time.sleep(1000)
     pass
