@@ -1,4 +1,4 @@
 odoo_automation
 adafruit-circuitpython-mcp230xx
 adafruit-circuitpython-pca9685
-Adafruit_Python_ADS1x15
+adafruit-ads1x15
