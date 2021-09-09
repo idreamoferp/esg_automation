@@ -12,9 +12,9 @@ mcp20 = MCP23017(i2c, address=0x20)
 
 #setup logger
 logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s - %(message)s",datefmt='%m/%d/%Y %I:%M:%S %p',level=logging.INFO)
-_logger = logging.getLogger("Test Machine")
+_logger = logging.getLogger("Epoxy Dispenser")
 
-class TestMachine(automation_web.Automation_Webservice, automation.MRP_Automation):
+class MRP_machine(automation_web.Automation_Webservice, automation.MRP_Automation):
     
     def __init__(self, api, asset_id):
         
@@ -45,7 +45,7 @@ class TestMachine(automation_web.Automation_Webservice, automation.MRP_Automatio
         self.button_estop_led = digitalio.DigitalInOut(board.D4)
         self.button_estop_led.direction = digitalio.Direction.OUTPUT
         
-        super(TestMachine, self).__init__(api, asset_id)
+        super(MRP_machine, self).__init__(api, asset_id)
         
         #init route lanes
         self.route_lanes = [MRP_Carrier_Lane_0(self.api, self), MRP_Carrier_Lane_1(self.api, self)]
@@ -93,15 +93,15 @@ class TestMachine(automation_web.Automation_Webservice, automation.MRP_Automatio
             
     def indicator_start(self, value):
         self.button_start_led.value = value
-        return super(TestMachine, self).indicator_start(value)
+        return super(MRP_machine, self).indicator_start(value)
     
     def indicator_warn(self, value):
         self.button_warn_led.value = value
-        return super(TestMachine, self).indicator_warn(value)
+        return super(MRP_machine, self).indicator_warn(value)
         
     def indicator_e_stop(self, value):
         self.button_estop_led.value = not value
-        return super(TestMachine, self).indicator_e_stop(value)
+        return super(MRP_machine, self).indicator_e_stop(value)
         
     
     #Button inputs
@@ -113,21 +113,21 @@ class TestMachine(automation_web.Automation_Webservice, automation.MRP_Automatio
             self.motion_control.soft_reset()
             self.motion_control.home()
             
-        return super(TestMachine, self).button_start()
+        return super(MRP_machine, self).button_start()
     
     def button_stop(self):
         self.conveyor_1.stop()
-        return super(TestMachine, self).button_stop()
+        return super(MRP_machine, self).button_stop()
     
     def e_stop(self):
         #put render safe i/o here.
         self.conveyor_1.e_stop()
-        return super(TestMachine, self).e_stop()
+        return super(MRP_machine, self).e_stop()
     
     def e_stop_reset(self):
         #put reboot i/o here
         self.conveyor_1.e_stop_reset()
-        return super(TestMachine, self).e_stop_reset()
+        return super(MRP_machine, self).e_stop_reset()
         
     def quit(self):
         #set indicators to safe off state.
@@ -138,7 +138,7 @@ class TestMachine(automation_web.Automation_Webservice, automation.MRP_Automatio
         self.conveyor_1.quit()
         
         i2c.deinit()
-        return super(TestMachine, self).quit()  
+        return super(MRP_machine, self).quit()  
         
     #motion and machine controls
     def goto_default_location(self):
