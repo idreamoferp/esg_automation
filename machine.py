@@ -517,7 +517,7 @@ if __name__ == '__main__':
     machine = MRP_machine(odoo_api, config)
     
     #uncomment for machine auto start
-    machine.button_start()
+    #machine.button_start()
     
     while 1:
         #main thread eep alive
