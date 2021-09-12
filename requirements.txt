@@ -2,3 +2,5 @@ odoo_automation
 adafruit-circuitpython-mcp230xx
 adafruit-circuitpython-pca9685
 adafruit-ads1x15
+rpi_ws281x 
+adafruit-circuitpython-neopixel
