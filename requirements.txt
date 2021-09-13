@@ -1,0 +1,6 @@
+pi4_automation_board
+simple-pid
+numpy
+ikp3db
+odoo-automation
+
