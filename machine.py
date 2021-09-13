@@ -1,11 +1,11 @@
 from odoo_automation import automation, conveyor, automation_web, dispenser
 import logging, odoorpc, threading, time, argparse, configparser, serial
 from odoo_automation import motion_control_grbl as motion_control
-import digitalio, board, busio, neopixel #blinka libs
+import digitalio, board, busio #blinka libs
 import RPi.GPIO as GPIO #RPi libs for interupts
-from adafruit_mcp230xx import mcp23017
+from adafruit_mcp230xx.mcp23017 import MCP23017
 import Adafruit_ADS1x15
-from adafruit_pca9685 import PCA9685
+import adafruit_pca9685
 
 reset_pin = digitalio.DigitalInOut(board.D22)
 reset_pin.direction = digitalio.Direction.OUTPUT
@@ -13,9 +13,9 @@ reset_pin.value = 1
 
 #setup up i/o devices
 i2c = busio.I2C(board.SCL, board.SDA)
-mcp20 = mcp23017.MCP23017(i2c, address=0x20)
+mcp20 = MCP23017(i2c, address=0x20)
 adc0 = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)
-pca = PCA9685(i2c, address=0x40)
+pca = adafruit_pca9685.PCA9685(i2c, address=0x40)
 pca.frequency = 60
 
 #setup logger
@@ -25,13 +25,8 @@ _logger = logging.getLogger("Epoxy Dispenser")
 class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservice):
     
     def __init__(self, api, asset_id):
-        self.logo = neopixel.NeoPixel(board.D12, 116)
-        self.logo_top = self.logo[62:]
-        self.logo_bottom = self.logo[:62]
-        
         #init conveyor for this machine
-        self.conveyor_1 = Conveyor_1()
-        self.conveyor_1.set_ipm = 10
+        self.conveyor_1 = Conveyor_1(config["conveyor_1"])
         
         #setup button pins
         self.button_start_input = digitalio.DigitalInOut(board.D18)
@@ -407,22 +402,10 @@ class MRP_Carrier_Lane_1(automation.MRP_Carrier_Lane):
 
 class Conveyor_1(conveyor.Conveyor):
     
-    def __init__(self):
-        super(Conveyor_1, self).__init__(name="conveyor_1")
+    def __init__(self, config):
+        super(Conveyor_1, self).__init__(config=config)
         
-        self.pid_controller.Kp = .45
-        self.pid_controller.Ki = .05
-        self.pid_controller.Kd = 6
-        
-        self.inch_per_rpm = 4.75
-        
-        GPIO.setmode(GPIO.BCM)  
-        GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(5, GPIO.RISING, callback=self.tach_tick)
-        
-        GPIO.setup(12,GPIO.OUT)
-        self.motor_p = GPIO.PWM(12,5000)
-        self.motor_p.start(0)
+        self.motor_p = pca.channels[12]
         self.motor_duty = 40
         
         #setup diverter logic
@@ -432,24 +415,17 @@ class Conveyor_1(conveyor.Conveyor):
     
     def set_speed(self, freq_offset):
         duty = self.motor_duty + freq_offset
-        
-        if duty > 100:
-            duty = 100
-            
-        if duty < 0:
-            duty = 0
-        
-        self.motor_p.ChangeDutyCycle(duty)
+        self.motor_p.duty_cycle(duty)
         self.motor_duty = duty
         
         return super(Conveyor_1, self).set_speed(freq_offset=freq_offset)
     
     def start(self):
-        self.motor_p.ChangeDutyCycle(self.motor_duty)
+        self.motor_p.duty_cycle(self.motor_duty)
         return super(Conveyor_1, self).start()
     
     def stop(self):
-        self.motor_p.ChangeDutyCycle(0)
+        self.motor_p.duty_cycle(0)
         return super(Conveyor_1, self).stop()
     
     def tach_tick(self, ch):
