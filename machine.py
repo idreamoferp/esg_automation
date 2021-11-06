@@ -137,6 +137,7 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         self.indicator_warn(False)
         
         #send quit signals to sub components
+        self.dispenser.quit()
         self.conveyor_1.quit()
         self.motion_control.quit()
         
@@ -174,6 +175,10 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         self.index_failures = 0
         
         self.barcode_scanner = serial.Serial('/dev/ttyACM1', baudrate=115200, rtscts=True)
+        
+        #install custom carrier calss into lane
+        self.carrier_class = Carrier
+        
         self._logger.info("Lane INIT Complete")
         pass
     
@@ -265,7 +270,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         self._logger.info("Machine opened ingress gate, waiting for product to trigger end stop")
         
         #positioning machine to lane zero
-        self.mrp_automation_machine.motion_control.send_command("G0 Y468Z0")
+        self.mrp_automation_machine.motion_control.send_command("G1f3000 Y468Z0")
         self.mrp_automation_machine.motion_control.send_command("G54")
         self.mrp_automation_machine.motion_control.send_command("G92 Y0")
         self.goto_position_abs(y=0,z=0)
@@ -334,7 +339,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         self.mrp_automation_machine.motion_control.send_command("G53")
         
         #put machine in a save position to egress carrier
-        self.goto_position_abs(z=0)
+        self.goto_position_abs(z=0.0)
         time.sleep(1)
         self.mrp_automation_machine.motion_control.wait_for_movement()
         
@@ -373,7 +378,18 @@ class MRP_Carrier_Lane_1(automation.MRP_Carrier_Lane):
         self._logger.info("Lane INIT Complete")
         pass
 
-
+class Carrier(automation.Carrier):
+    def __init__(self, api, carrier_history_id, carrier_lane):
+        result = super(Carrier, self).__init__(api, carrier_history_id, carrier_lane)
+        self.exec_globals["motion_control"] = self.lane.mrp_automation_machine.motion_control
+        self.exec_globals["dispenser"] = self.lane.mrp_automation_machine.dispenser
+        pass
+    
+    def process_carrier(self):
+        result = super(Carrier, self).process_carrier()
+        self.lane.mrp_automation_machine.dispenser.wait_for_dispense()
+        self.lane.mrp_automation_machine.motion_control.wait_for_movement()
+        return result
 
 class Conveyor_1(conveyor.Conveyor):
     
@@ -460,7 +476,7 @@ class divert_1(conveyor.Diverter):
         pass
         
     def close_exit_door(self):
-        while self.exit_door_last_open + 30 > time.time():
+        while self.exit_door_last_open + 20 > time.time():
             time.sleep(1)
             
         self.exit_door_pin.duty_cycle = 0x0000
@@ -469,6 +485,9 @@ class divert_1(conveyor.Diverter):
 class FRC_advantage(dispenser.FRC_advantage_ii):
     def __init__(self, api, config):
         super(FRC_advantage, self).__init__(api, config)
+        
+        self.ready_status = True
+        
         
         self.ready_pin = _mcp20.get_pin(8)
         self.ready_pin.direction = digitalio.Direction.INPUT
@@ -541,7 +560,7 @@ class FRC_advantage(dispenser.FRC_advantage_ii):
         return super(FRC_advantage, self).set_e_stop()
     
     def _start_dispense(self):
-        
+        super(FRC_advantage, self)._start_dispense()
         self.start_pin.duty_cycle = 0xffff
         return True
         
@@ -594,7 +613,7 @@ class FRC_advantage(dispenser.FRC_advantage_ii):
         self.program_bit_1_pin.value = 0
         self.program_bit_2_pin.value = 0
         self.program_bit_3_pin.value = 0
-        self.program_bit_4_pin.value = 0
+        
         return super(FRC_advantage, self).quit()    
 
 def create_odoo_api():
