@@ -58,6 +58,7 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         
         port = serial.Serial('/dev/ttyACM0', baudrate=115200)
         self.motion_control = motion_control.MotonControl(port)
+        self.motion_control_lock = threading.Lock()
         self.motion_control.axis_to_home = ["Y", "Z"]
         self.motion_control.home()
         self.motion_control.wait_for_movement()
@@ -73,13 +74,13 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         
     def button_input_loop(self):
         while True:
-            if self.button_start_input.value:
+            if not self.button_start_input.value:
                 self.button_start()
             
-            if self.button_stop_input.value:
+            if not self.button_stop_input.value:
                 self.button_stop()
                 
-            if self.button_estop_input.value:
+            if not self.button_estop_input.value:
                 #self.e_stop()
                 pass
                 
@@ -141,40 +142,17 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         self.conveyor_1.quit()
         self.motion_control.quit()
         
+        self.button_estop_relay.duty_cycle = 0x0000
+        
         return super(MRP_machine, self).quit()  
         
     #motion and machine controls
     def goto_default_location(self):
         self.motion_control.goto_position_abs(y=25,z=0.0)
     
-        
-class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
+class MRP_Carrier_Lane(automation.MRP_Carrier_Lane):
     def __init__(self, api, mrp_automation_machine):
-        super(MRP_Carrier_Lane_0, self).__init__(api, mrp_automation_machine)
-        self._logger = logging.getLogger("Carrier Lane 0")
-        
-        self.input_ingress = _mcp20.get_pin(4)
-        self.input_ingress.direction = digitalio.Direction.INPUT
-        #self.input_ingress.pull = digitalio.Pull.UP
-        
-        self.ingress_end_stop = _mcp20.get_pin(5)
-        self.ingress_end_stop.direction = digitalio.Direction.INPUT
-        #self.ingress_end_stop.pull = digitalio.Pull.UP
-        
-        # GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        # GPIO.add_event_detect(26, GPIO.BOTH, callback=self.irq_index)
-        
-        self.output_ingress_gate = _pca.channels[10]
-        self.output_ingress_gate.duty_cycle = False
-        
-        self.output_carrier_capture = _pca.channels[11]
-        self.output_carrier_capture.duty_cycle = 0x0000
-        
-        self.index_1 = 0.0
-        self.index_0 = 0.0
-        self.index_failures = 0
-        
-        self.barcode_scanner = serial.Serial('/dev/ttyACM1', baudrate=115200, rtscts=True)
+        super(MRP_Carrier_Lane, self).__init__(api, mrp_automation_machine)
         
         #install custom carrier calss into lane
         self.carrier_class = Carrier
@@ -183,15 +161,9 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         pass
     
     def config_cnc_datum(self):
-        command = G
+        command = "G"
         self.mrp_automation_machine.motion_control.send_command
-        
-    def goto_position_abs(self, y=False,z=False,a=False,feed=False,wait=True):
-        return self.mrp_automation_machine.motion_control.goto_position_abs(y=y,z=z,a=a, feed=feed, wait=wait)
-    def goto_position_rel(self, y=False,z=False,a=False,feed=False,wait=True):
-        return self.mrp_automation_machine.motion_control.goto_position_rel(y=y,z=z,a=a, feed=feed,wait=wait)
     
-        
     def index_carrier(self):
         self._logger.info("Indexing carrier")
         self.mrp_automation_machine.motion_control.wait_for_movement()
@@ -220,7 +192,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         barcode = False
         
         barcode_start_position = 0
-        self.goto_position_abs(a=barcode_start_position)
+        self.mrp_automation_machine.motion_control.goto_position_abs(a=barcode_start_position)
         
         if self.barcode_scanner.in_waiting > 0:
             #barcode was read during indexing
@@ -228,7 +200,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         fail_count = 0
         
         while isinstance(barcode, bool) and fail_count < 5:
-            self.goto_position_abs(a=-15 + barcode_start_position, feed=900)
+            self.mrp_automation_machine.motion_control.goto_position_abs(a=-15 + barcode_start_position, feed=900)
             
             self.mrp_automation_machine.motion_control.wait_for_movement()
             
@@ -236,7 +208,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
                 barcode = self.barcode_scanner.readline()
                 
             if isinstance(barcode, bool):
-                self.goto_position_rel(a=15 + barcode_start_position, feed=900)
+                self.mrp_automation_machine.motion_control.goto_position_rel(a=15 + barcode_start_position, feed=900)
                 
                 self.mrp_automation_machine.motion_control.wait_for_movement()
             
@@ -253,14 +225,14 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
     #main loop functions
     def preflight_checks(self):
         #check that the machine is ready to accept a product.
-        if self.ingress_end_stop.value:
+        if not self.ingress_end_stop.value:
             self._logger.warn("Carrier End Stop trigger, a carrier may be trapped in the machine.")
             return False
         
         return True
         
     def ingress_trigger(self):
-        return self.input_ingress.value
+        return not self.input_ingress.value
         
     def process_ingress(self):
         
@@ -269,15 +241,10 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         self.output_ingress_gate.duty_cycle = 0xffff
         self._logger.info("Machine opened ingress gate, waiting for product to trigger end stop")
         
-        #positioning machine to lane zero
-        self.mrp_automation_machine.motion_control.send_command("G1f3000 Y468Z0")
-        self.mrp_automation_machine.motion_control.send_command("G54")
-        self.mrp_automation_machine.motion_control.send_command("G92 Y0")
-        self.goto_position_abs(y=0,z=0)
         
         #wait for ingress end stop trigger
         time_out = time.time()
-        while not self.ingress_end_stop.value:
+        while self.ingress_end_stop.value:
             if time_out + 60 < time.time():
                 self.output_ingress_gate.duty_cycle = 0x0000
                 self.warn = True
@@ -294,6 +261,9 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         
         #clear barcode buffer 
         self.clear_barcode_reader()
+        
+        #wait for any movments to stop 
+        self.mrp_automation_machine.motion_control.wait_for_movement()
         
         #index carrier
         if not self.index_carrier():
@@ -318,14 +288,18 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
             return True
         
         #wait for all motion to compleete
-        self.goto_position_abs(a=0.0)
+        #positioning machine to lane zero
+        self.mrp_automation_machine.motion_control.goto_position_abs(y=468, z=0.0, wait=False)
+        self.mrp_automation_machine.motion_control.send_command("G54")
+        self.mrp_automation_machine.motion_control.send_command("G92 Y0")
+        self.mrp_automation_machine.motion_control.goto_position_abs(a=0.0)
         self.mrp_automation_machine.motion_control.wait_for_movement()
         
         
         return True
     
     def process_carrier(self):
-        result = super(MRP_Carrier_Lane_0, self).process_carrier()
+        result = super(MRP_Carrier_Lane, self).process_carrier()
         self.mrp_automation_machine.motion_control.wait_for_movement()
         return result
             
@@ -352,7 +326,7 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         
         #wait for egress end stop trigger
         time_out = time.time()
-        while not self.ingress_end_stop.value:
+        while self.ingress_end_stop.value:
             if time_out + 60 < time.time():
                 self._logger.warn("Timeout waiting for egress end stop trigger.")
                 return False
@@ -362,20 +336,62 @@ class MRP_Carrier_Lane_0(automation.MRP_Carrier_Lane):
         #free the diverter for other operations
         self.mrp_automation_machine.conveyor_1.diverter.clear_divert()
         
-        return super(MRP_Carrier_Lane_0, self).process_egress()
+        return super(MRP_Carrier_Lane, self).process_egress()
         
     def quit(self):
-        super(MRP_Carrier_Lane_0, self).quit()
-            
+        super(MRP_Carrier_Lane, self).quit()
+        self.barcode_scanner.close()
         self.output_ingress_gate.duty_cycle = 0x0000
         self.output_carrier_capture.duty_cycle = 0x0000
         return True
-    
-class MRP_Carrier_Lane_1(automation.MRP_Carrier_Lane):
+        
+class MRP_Carrier_Lane_0(MRP_Carrier_Lane):
     def __init__(self, api, mrp_automation_machine):
-        super(MRP_Carrier_Lane_1, self).__init__(api, mrp_automation_machine)
+        self._logger = logging.getLogger("Carrier Lane 0")
+        self.input_ingress = _mcp20.get_pin(4)
+        self.input_ingress.direction = digitalio.Direction.INPUT
+        self.input_ingress.pull = digitalio.Pull.UP
+        
+        self.ingress_end_stop = _mcp20.get_pin(5)
+        self.ingress_end_stop.direction = digitalio.Direction.INPUT
+        self.ingress_end_stop.pull = digitalio.Pull.UP
+        
+        self.output_ingress_gate = _pca.channels[10]
+        self.output_ingress_gate.duty_cycle = False
+        
+        self.output_carrier_capture = _pca.channels[11]
+        self.output_carrier_capture.
+        duty_cycle = 0x0000
+        
+        self.barcode_scanner = serial.Serial('/dev/ttyACM1', baudrate=115200, rtscts=True)
+        
+        super(MRP_Carrier_Lane_0, self).__init__(api, mrp_automation_machine)
+        pass
+    
+    def config_cnc_datum(self):
+        command = "G"
+        self.mrp_automation_machine.motion_control.send_command
+    
+class MRP_Carrier_Lane_1(MRP_Carrier_Lane):
+    def __init__(self, api, mrp_automation_machine):
         self._logger = logging.getLogger("Carrier Lane 1")
-        self._logger.info("Lane INIT Complete")
+        self.input_ingress = _mcp20.get_pin(6)
+        self.input_ingress.direction = digitalio.Direction.INPUT
+        self.input_ingress.pull = digitalio.Pull.UP
+        
+        self.ingress_end_stop = _mcp20.get_pin(7)
+        self.ingress_end_stop.direction = digitalio.Direction.INPUT
+        self.ingress_end_stop.pull = digitalio.Pull.UP
+        
+        self.output_ingress_gate = _pca.channels[5]
+        self.output_ingress_gate.duty_cycle = False
+        
+        self.output_carrier_capture = _pca.channels[6]
+        self.output_carrier_capture.duty_cycle = 0x0000
+        
+        self.barcode_scanner = serial.Serial('/dev/ttyACM2', baudrate=115200, rtscts=True)
+        
+        super(MRP_Carrier_Lane_1, self).__init__(api, mrp_automation_machine)
         pass
 
 class Carrier(automation.Carrier):
@@ -459,7 +475,8 @@ class divert_1(conveyor.Diverter):
         self.exit_door_pin = _pca.channels[9]
         self.exit_door_pin.duty_cycle = 0x0000
         self.exit_door_close_thread = threading.Thread(target=self.close_exit_door, daemon=True)
-        return super(divert_1, self).__init__(name)
+        super(divert_1, self).__init__(name)
+        pass
     
     def divert(self, current_lane, destination_lane):
         self.open_exit_door()
