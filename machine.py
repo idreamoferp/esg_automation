@@ -8,9 +8,6 @@ from adafruit_mcp230xx.mcp23017 import MCP23017
 import adafruit_ads1x15
 import adafruit_pca9685
 
-reset_pin = digitalio.DigitalInOut(board.D22)
-reset_pin.direction = digitalio.Direction.OUTPUT
-reset_pin.value = 1
 
 #setup up i/o devices
 _i2c_1 = busio.I2C(board.SCL, board.SDA)
