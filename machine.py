@@ -27,26 +27,41 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         self.conveyor_1 = Conveyor_1(config["conveyor_1"])
         
         #setup button pins
-        self.button_start_input = _mcp20.get_pin(0) #digitalio.DigitalInOut(board.D18)
+        self.button_start_input = digitalio.DigitalInOut(board.D6)
         self.button_start_input.direction = digitalio.Direction.INPUT
         self.button_start_input.pull = digitalio.Pull.UP
         
-        self.button_stop_input = _mcp20.get_pin(1) #digitalio.DigitalInOut(board.D6)
+        self.button_stop_input = digitalio.DigitalInOut(board.D5)
         self.button_stop_input.direction = digitalio.Direction.INPUT
         self.button_stop_input.pull = digitalio.Pull.UP
         
-        self.button_estop_input = _mcp20.get_pin(2) #digitalio.DigitalInOut(board.D5)
+        self.button_estop_input = digitalio.DigitalInOut(board.D23)
         self.button_estop_input.direction = digitalio.Direction.INPUT
         self.button_estop_input.pull = digitalio.Pull.UP
         
-        self.button_start_led = _pca.channels[14]
-        self.button_start_led.duty_cycle = 0x0000
+        self.door_locks_safe = digitalio.DigitalInOut(board.D24)
+        self.door_locks_safe.direction = digitalio.Direction.INPUT
+        self.door_locks_safe.pull = digitalio.Pull.UP
         
-        self.button_warn_led = _pca.channels[13]
-        self.button_warn_led.duty_cycle = 0x0000
+        self.button_start_led = digitalio.DigitalInOut(board.D13)
+        self.button_start_led.direction = digitalio.Direction.OUTPUT
+        self.button_start_led.value = 0
         
-        self.button_estop_relay = _pca.channels[15]
-        self.button_estop_relay.duty_cycle = 0xffff
+        self.button_warn_led = digitalio.DigitalInOut(board.D25)
+        self.button_warn_led.direction = digitalio.Direction.OUTPUT
+        self.button_warn_led.value = 0
+        
+        self.button_estop_relay = digitalio.DigitalInOut(board.D26)
+        self.button_estop_relay.direction = digitalio.Direction.OUTPUT
+        self.button_estop_relay.value = 1
+        
+        self.door_locks = digitalio.DigitalInOut(board.D27)
+        self.door_locks.direction = digitalio.Direction.OUTPUT
+        self.door_locks.value = 1
+        
+        self.nRESET = digitalio.DigitalInOut(board.D4)
+        self.nRESET.direction = digitalio.Direction.OUTPUT
+        self.nRESET.value = 1
         
         port = serial.Serial('/dev/ttyACM0', baudrate=115200)
         self.motion_control = motion_control.MotonControl(port)
@@ -82,7 +97,7 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
                     #self.e_stop()
                     pass
                     
-                if not self.button_estop_input.value and self.e_stop_status == True:
+                if self.button_estop_input.value and self.e_stop_status == True:
                     self.e_stop_reset() 
             except Exception as e:
                 pass
@@ -91,16 +106,13 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
             
     def indicator_start(self, value):
         super(MRP_machine, self).indicator_start(value)
-        if value == True:
-            value = 0xffff
-        self.button_start_led.duty_cycle = value
+
+        self.button_start_led.value = value
         pass 
     
     def indicator_warn(self, value):
         super(MRP_machine, self).indicator_warn(value)
-        if value == True:
-            value = 0xffff
-        self.button_warn_led.duty_cycle = value
+        self.button_warn_led.value = value
         return 
         
     def indicator_e_stop(self, value):
@@ -142,7 +154,7 @@ class MRP_machine(automation.MRP_Automation, automation_web.Automation_Webservic
         self.conveyor_1.quit()
         self.motion_control.quit()
         
-        self.button_estop_relay.duty_cycle = 0x0000
+        self.button_estop_relay.value =False
         
         return super(MRP_machine, self).quit()  
         
@@ -255,7 +267,7 @@ class MRP_Carrier_Lane(automation.MRP_Carrier_Lane):
         #wait for ingress end stop trigger
         time_out = time.time()
         while self.ingress_end_stop.value:
-            if time_out + 60 < time.time():
+            if time_out + 0 < time.time():
                 self.output_ingress_gate.duty_cycle = 0x0000
                 self.warn = True
                 self._logger.warn("Timeout waiting for ingress end stop trigger")
@@ -419,7 +431,7 @@ class Conveyor_1(conveyor.Conveyor):
     def __init__(self, config):
         super(Conveyor_1, self).__init__(config=config)
         
-        self.motor_p = _pca.channels[12]
+        self.motor_p = _pca.channels[8]
         self.motor_p.duty_cycle = 0x0000
         self.motor_duty = 0x5000
         
