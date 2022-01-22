@@ -1,0 +1,11 @@
+[Unit]
+Description=ESG Automation Machine
+Wants=graphical.target
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart= /opt/esg_automation/bin/python /opt/esg_automationmachine.py -c /opt/esg_automation/machine.conf
+Restart=on-abort
+User=root
+Group=root
