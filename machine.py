@@ -267,7 +267,7 @@ class MRP_Carrier_Lane(automation.MRP_Carrier_Lane):
         #wait for ingress end stop trigger
         time_out = time.time()
         while self.ingress_end_stop.value:
-            if time_out + 0 < time.time():
+            if time_out + 10 < time.time():
                 self.output_ingress_gate.duty_cycle = 0x0000
                 self.warn = True
                 self._logger.warn("Timeout waiting for ingress end stop trigger")
